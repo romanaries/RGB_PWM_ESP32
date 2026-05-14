@@ -9,8 +9,8 @@ Bezdratovy RGB PWM kontroler pre 3x prudovy LED driver LD06AJSA/CN5711 a 1 W RGB
 - Wi-Fi konfiguracia cez portal `RGB-LAB-SETUP`, bez hesiel v kode
 - 3 kanaly: R, G, B
 - slider aj ciselny vstup 0-100 %
-- samostatne zapinanie/vypinanie kanalov
-- master vypinac pre vsetky kanaly
+- samostatne akcne tlacidla `Turn on` / `Turn off` pre kanaly
+- master akcne tlacidlo `Turn all on` / `Turn all off`
 - plynuly linear ramp pri zmene hodnot a zap/vyp
 - gamma korekcia PWM pre prirodzenejsi jas
 - ulozenie poslednych hodnot do flash pamate

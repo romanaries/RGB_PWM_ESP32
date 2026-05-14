@@ -1,16 +1,16 @@
 #include <Arduino.h>
 #include <ArduinoJson.h>
+#include <DNSServer.h>
+#include <ESPmDNS.h>
 #include <Preferences.h>
 #include <WebServer.h>
 #include <WiFi.h>
-#include <WiFiManager.h>
 #include <math.h>
 
 static const char* FW_VERSION = "0.1.0";
 static const char* DEVICE_NAME = "RGB-LAB";
 static const char* CONFIG_AP_NAME = "RGB-LAB-SETUP";
-
-constexpr uint8_t BOOT_BUTTON_PIN = 9;
+static const char* MDNS_NAME = "rgb-lab";
 
 // LuatOS ESP32-C3 board, pins 1-16 side.
 constexpr uint8_t PWM_R_PIN = 0;
@@ -51,9 +51,11 @@ Channel channels[] = {
 
 Preferences prefs;
 WebServer server(80);
+DNSServer dnsServer;
 
 bool masterEnabled = true;
 bool settingsDirty = false;
+bool fallbackPortalActive = false;
 uint32_t lastFrameMs = 0;
 uint32_t dirtySinceMs = 0;
 
@@ -154,6 +156,7 @@ void saveSettingsIfNeeded() {
 
 String ipText() {
   if (WiFi.status() == WL_CONNECTED) return WiFi.localIP().toString();
+  if (fallbackPortalActive) return WiFi.softAPIP().toString();
   return "not connected";
 }
 
@@ -248,8 +251,8 @@ void handlePreset() {
 void handleResetWifi() {
   server.send(200, "text/plain", "WiFi credentials cleared. Rebooting to setup portal.");
   delay(300);
-  WiFiManager wm;
-  wm.resetSettings();
+  prefs.remove("wifi_ssid");
+  prefs.remove("wifi_pass");
   ESP.restart();
 }
 
@@ -307,9 +310,47 @@ api('/api/state');setInterval(()=>api('/api/state'),2000);
 </html>
 )HTML";
 
+const char FALLBACK_PORTAL_HTML[] PROGMEM = R"HTML(
+<!doctype html>
+<html lang="sk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>RGB Lab Wi-Fi Setup</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#0b0d10;color:#e8edf2;font-family:Segoe UI,Arial,sans-serif}.wrap{width:min(520px,100%);margin:0 auto;padding:22px}h1{font-size:24px;margin:0 0 8px}.muted{color:#8f9aaa;margin-bottom:18px}.box{border:1px solid #29313d;background:#141820;border-radius:8px;padding:16px}label{display:block;margin:12px 0 6px;color:#aab4c2}input{width:100%;padding:12px;border-radius:8px;border:1px solid #29313d;background:#0f1218;color:#e8edf2;font-size:16px}button{width:100%;margin-top:16px;padding:12px;border-radius:8px;border:1px solid #40516a;background:#243145;color:#e8edf2;font-weight:700}
+</style>
+</head>
+<body><main class="wrap"><h1>RGB Lab Wi-Fi Setup</h1><p class="muted">Zadaj lokalnu Wi-Fi siet. ESP32 sa po ulozeni restartuje.</p><form class="box" method="post" action="/wifi-save"><label>SSID</label><input name="ssid" autocomplete="off" required><label>Heslo</label><input name="pass" type="password"><button>Ulozit a restartovat</button></form></main></body>
+</html>
+)HTML";
+
 void handleRoot() {
   sendNoCacheHeaders();
+  if (fallbackPortalActive) {
+    server.send_P(200, "text/html", FALLBACK_PORTAL_HTML);
+    return;
+  }
   server.send_P(200, "text/html", INDEX_HTML);
+}
+
+void handleFallbackPortal() {
+  sendNoCacheHeaders();
+  server.send_P(200, "text/html", FALLBACK_PORTAL_HTML);
+}
+
+void handleWifiSave() {
+  const String ssid = server.arg("ssid");
+  const String pass = server.arg("pass");
+  if (ssid.length() == 0) {
+    server.send(400, "text/plain", "SSID is required");
+    return;
+  }
+  prefs.putString("wifi_ssid", ssid);
+  prefs.putString("wifi_pass", pass);
+  server.send(200, "text/plain", "Wi-Fi ulozena. ESP32 sa restartuje.");
+  delay(300);
+  ESP.restart();
 }
 
 void setupPwm() {
@@ -321,31 +362,57 @@ void setupPwm() {
 }
 
 void setupWifi() {
-  WiFi.mode(WIFI_STA);
-  WiFiManager wm;
-  wm.setHostname(DEVICE_NAME);
-  wm.setConfigPortalTimeout(180);
-  wm.setConnectTimeout(WIFI_CONNECT_TIMEOUT_S);
+  WiFi.setTxPower(WIFI_POWER_19_5dBm);
+  const String ssid = prefs.getString("wifi_ssid", "");
+  const String pass = prefs.getString("wifi_pass", "");
 
-  const bool forcePortal = digitalRead(BOOT_BUTTON_PIN) == LOW;
-  bool connected = false;
-  if (forcePortal) {
-    connected = wm.startConfigPortal(CONFIG_AP_NAME);
-  } else {
-    connected = wm.autoConnect(CONFIG_AP_NAME);
+  if (ssid.length() == 0) {
+    Serial.println("No WiFi credentials saved, starting setup AP.");
+    fallbackPortalActive = true;
+    WiFi.mode(WIFI_AP);
+    WiFi.softAP(CONFIG_AP_NAME);
+    delay(100);
+    dnsServer.start(53, "*", WiFi.softAPIP());
+    Serial.printf("Setup AP active: %s, IP: %s\n", CONFIG_AP_NAME, WiFi.softAPIP().toString().c_str());
+    return;
   }
 
-  if (!connected) {
-    Serial.println("WiFi setup timeout, restarting.");
-    delay(500);
-    ESP.restart();
+  WiFi.mode(WIFI_STA);
+  WiFi.setHostname(DEVICE_NAME);
+  WiFi.begin(ssid.c_str(), pass.c_str());
+  Serial.printf("Connecting to WiFi: %s\n", ssid.c_str());
+
+  const uint32_t startMs = millis();
+  while (WiFi.status() != WL_CONNECTED && millis() - startMs < WIFI_CONNECT_TIMEOUT_S * 1000UL) {
+    delay(250);
+    Serial.print('.');
+  }
+  Serial.println();
+
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("WiFi connect failed, starting setup AP.");
+    fallbackPortalActive = true;
+    WiFi.disconnect(true);
+    delay(100);
+    WiFi.mode(WIFI_AP);
+    WiFi.softAP(CONFIG_AP_NAME);
+    delay(100);
+    dnsServer.start(53, "*", WiFi.softAPIP());
+    Serial.printf("Setup AP active: %s, IP: %s\n", CONFIG_AP_NAME, WiFi.softAPIP().toString().c_str());
+    return;
   }
 
   Serial.printf("WiFi connected: %s, IP: %s\n", WiFi.SSID().c_str(), WiFi.localIP().toString().c_str());
+  if (MDNS.begin(MDNS_NAME)) {
+    MDNS.addService("http", "tcp", 80);
+    Serial.printf("mDNS active: http://%s.local/\n", MDNS_NAME);
+  }
 }
 
 void setupServer() {
   server.on("/", HTTP_GET, handleRoot);
+  server.on("/wifi", HTTP_GET, handleFallbackPortal);
+  server.on("/wifi-save", HTTP_POST, handleWifiSave);
   server.on("/api/state", HTTP_GET, handleState);
   server.on("/api/set", HTTP_GET, handleSet);
   server.on("/api/toggle", HTTP_GET, handleToggle);
@@ -360,7 +427,6 @@ void setup() {
   delay(200);
   Serial.printf("\n\n%s RGB PWM controller %s\n", DEVICE_NAME, FW_VERSION);
 
-  pinMode(BOOT_BUTTON_PIN, INPUT_PULLUP);
   loadSettings();
   setupPwm();
   setupWifi();
@@ -368,6 +434,9 @@ void setup() {
 }
 
 void loop() {
+  if (fallbackPortalActive) {
+    dnsServer.processNextRequest();
+  }
   server.handleClient();
   tickFades();
   saveSettingsIfNeeded();

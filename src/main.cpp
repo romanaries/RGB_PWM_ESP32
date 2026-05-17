@@ -7,10 +7,12 @@
 #include <WiFi.h>
 #include <math.h>
 
-static const char* FW_VERSION = "0.1.1";
+static const char* FW_VERSION = "0.1.2";
 static const char* DEVICE_NAME = "RGB-LAB";
 static const char* CONFIG_AP_NAME = "RGB-LAB-SETUP";
 static const char* MDNS_NAME = "rgb-lab";
+static const char* WIFI_PREF_NAMESPACE = "rgbpwm";
+static const char* STATE_PREF_NAMESPACE = "rgbstate";
 
 // LuatOS ESP32-C3 board, pins 1-16 side.
 constexpr uint8_t PWM_R_PIN = 0;
@@ -52,6 +54,18 @@ Channel channels[] = {
   {"g", "Green", PWM_G_PIN, PWM_G_CH, 0, true, 0.0f, 0.0f, 0.0f, 0},
   {"b", "Blue", PWM_B_PIN, PWM_B_CH, 0, true, 0.0f, 0.0f, 0.0f, 0},
   {"w", "White", PWM_W_PIN, PWM_W_CH, 0, true, 0.0f, 0.0f, 0.0f, 0},
+};
+
+constexpr size_t CHANNEL_COUNT = sizeof(channels) / sizeof(channels[0]);
+constexpr uint32_t STATE_MAGIC = 0x52474257;  // RGBW
+constexpr uint8_t STATE_VERSION = 1;
+
+struct StoredState {
+  uint32_t magic;
+  uint8_t version;
+  uint8_t master;
+  uint8_t percent[CHANNEL_COUNT];
+  uint8_t enabled[CHANNEL_COUNT];
 };
 
 WebServer server(80);
@@ -131,45 +145,62 @@ void tickFades() {
 
 void loadSettings() {
   Preferences prefs;
-  if (!prefs.begin("rgbpwm", true)) {
+  if (!prefs.begin(STATE_PREF_NAMESPACE, true)) {
     Serial.println("Failed to open settings storage, using defaults.");
     return;
   }
-  masterEnabled = prefs.getBool("master", true);
+
+  StoredState state = {};
+  const size_t storedLen = prefs.getBytesLength("state");
+  const bool loaded = storedLen == sizeof(state) &&
+                      prefs.getBytes("state", &state, sizeof(state)) == sizeof(state) &&
+                      state.magic == STATE_MAGIC &&
+                      state.version == STATE_VERSION;
+  prefs.end();
+
+  if (loaded) {
+    masterEnabled = state.master != 0;
+    for (size_t i = 0; i < CHANNEL_COUNT; ++i) {
+      channels[i].percent = clampPercent(state.percent[i]);
+      channels[i].enabled = state.enabled[i] != 0;
+    }
+  }
+
   Serial.printf("Loaded master=%s", masterEnabled ? "on" : "off");
   for (Channel& ch : channels) {
-    String valueKey = String(ch.id) + "_pct";
-    String enabledKey = String(ch.id) + "_en";
-    ch.percent = clampPercent(static_cast<int>(prefs.getUChar(valueKey.c_str(), 0)));
-    ch.enabled = prefs.getBool(enabledKey.c_str(), true);
     ch.currentPercent = desiredPercent(ch);
     ch.fadeStartPercent = ch.currentPercent;
     ch.fadeTargetPercent = ch.currentPercent;
     Serial.printf(", %s=%u%%/%s", ch.id, ch.percent, ch.enabled ? "on" : "off");
   }
-  Serial.println();
-  prefs.end();
+  Serial.println(loaded ? " -> loaded" : " -> defaults");
 }
 
 void saveSettingsNow() {
   Preferences prefs;
-  if (!prefs.begin("rgbpwm", false)) {
+  if (!prefs.begin(STATE_PREF_NAMESPACE, false)) {
     Serial.println("Failed to open settings storage for write.");
     return;
   }
 
+  StoredState state = {};
+  state.magic = STATE_MAGIC;
+  state.version = STATE_VERSION;
+  state.master = masterEnabled ? 1 : 0;
+  for (size_t i = 0; i < CHANNEL_COUNT; ++i) {
+    state.percent[i] = channels[i].percent;
+    state.enabled[i] = channels[i].enabled ? 1 : 0;
+  }
+
   Serial.printf("Saving master=%s", masterEnabled ? "on" : "off");
-  prefs.putBool("master", masterEnabled);
   for (Channel& ch : channels) {
-    String valueKey = String(ch.id) + "_pct";
-    String enabledKey = String(ch.id) + "_en";
-    prefs.putUChar(valueKey.c_str(), ch.percent);
-    prefs.putBool(enabledKey.c_str(), ch.enabled);
     Serial.printf(", %s=%u%%/%s", ch.id, ch.percent, ch.enabled ? "on" : "off");
   }
-  Serial.println(" -> stored");
+
+  const size_t written = prefs.putBytes("state", &state, sizeof(state));
+  Serial.println(written == sizeof(state) ? " -> stored" : " -> failed");
   prefs.end();
-  settingsDirty = false;
+  settingsDirty = written != sizeof(state);
 }
 
 void persistSettingsSoon() {
@@ -284,7 +315,7 @@ void handleResetWifi() {
   server.send(200, "text/plain", "WiFi credentials cleared. Rebooting to setup portal.");
   delay(300);
   Preferences prefs;
-  if (!prefs.begin("rgbpwm", false)) {
+  if (!prefs.begin(WIFI_PREF_NAMESPACE, false)) {
     ESP.restart();
   }
   prefs.remove("wifi_ssid");
@@ -398,7 +429,7 @@ void handleWifiSave() {
     return;
   }
   Preferences prefs;
-  if (!prefs.begin("rgbpwm", false)) {
+  if (!prefs.begin(WIFI_PREF_NAMESPACE, false)) {
     server.send(500, "text/plain", "Failed to open Wi-Fi storage");
     return;
   }
@@ -440,7 +471,7 @@ void updateStatusLed() {
 void setupWifi() {
   WiFi.setTxPower(WIFI_POWER_19_5dBm);
   Preferences prefs;
-  if (!prefs.begin("rgbpwm", true)) {
+  if (!prefs.begin(WIFI_PREF_NAMESPACE, true)) {
     Serial.println("Failed to open WiFi storage, starting setup AP.");
     fallbackPortalActive = true;
     WiFi.mode(WIFI_AP);

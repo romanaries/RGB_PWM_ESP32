@@ -7,7 +7,7 @@
 #include <WiFi.h>
 #include <math.h>
 
-static const char* FW_VERSION = "0.1.0";
+static const char* FW_VERSION = "0.1.1";
 static const char* DEVICE_NAME = "RGB-LAB";
 static const char* CONFIG_AP_NAME = "RGB-LAB-SETUP";
 static const char* MDNS_NAME = "rgb-lab";
@@ -54,7 +54,6 @@ Channel channels[] = {
   {"w", "White", PWM_W_PIN, PWM_W_CH, 0, true, 0.0f, 0.0f, 0.0f, 0},
 };
 
-Preferences prefs;
 WebServer server(80);
 DNSServer dnsServer;
 
@@ -131,27 +130,45 @@ void tickFades() {
 }
 
 void loadSettings() {
-  prefs.begin("rgbpwm", false);
+  Preferences prefs;
+  if (!prefs.begin("rgbpwm", true)) {
+    Serial.println("Failed to open settings storage, using defaults.");
+    return;
+  }
   masterEnabled = prefs.getBool("master", true);
+  Serial.printf("Loaded master=%s", masterEnabled ? "on" : "off");
   for (Channel& ch : channels) {
     String valueKey = String(ch.id) + "_pct";
     String enabledKey = String(ch.id) + "_en";
-    ch.percent = clampPercent(prefs.getUChar(valueKey.c_str(), 0));
+    ch.percent = clampPercent(static_cast<int>(prefs.getUChar(valueKey.c_str(), 0)));
     ch.enabled = prefs.getBool(enabledKey.c_str(), true);
     ch.currentPercent = desiredPercent(ch);
     ch.fadeStartPercent = ch.currentPercent;
     ch.fadeTargetPercent = ch.currentPercent;
+    Serial.printf(", %s=%u%%/%s", ch.id, ch.percent, ch.enabled ? "on" : "off");
   }
+  Serial.println();
+  prefs.end();
 }
 
 void saveSettingsNow() {
+  Preferences prefs;
+  if (!prefs.begin("rgbpwm", false)) {
+    Serial.println("Failed to open settings storage for write.");
+    return;
+  }
+
+  Serial.printf("Saving master=%s", masterEnabled ? "on" : "off");
   prefs.putBool("master", masterEnabled);
   for (Channel& ch : channels) {
     String valueKey = String(ch.id) + "_pct";
     String enabledKey = String(ch.id) + "_en";
     prefs.putUChar(valueKey.c_str(), ch.percent);
     prefs.putBool(enabledKey.c_str(), ch.enabled);
+    Serial.printf(", %s=%u%%/%s", ch.id, ch.percent, ch.enabled ? "on" : "off");
   }
+  Serial.println(" -> stored");
+  prefs.end();
   settingsDirty = false;
 }
 
@@ -266,8 +283,13 @@ void handlePreset() {
 void handleResetWifi() {
   server.send(200, "text/plain", "WiFi credentials cleared. Rebooting to setup portal.");
   delay(300);
+  Preferences prefs;
+  if (!prefs.begin("rgbpwm", false)) {
+    ESP.restart();
+  }
   prefs.remove("wifi_ssid");
   prefs.remove("wifi_pass");
+  prefs.end();
   ESP.restart();
 }
 
@@ -312,10 +334,12 @@ input[type=range]{width:100%;accent-color:var(--accent)}input[type=number]{width
 </main>
 <script>
 let state=null,timers={};
-function channelHtml(ch){return `<article class="channel ${ch.id}"><div><div class="label"><i class="dot"></i>${ch.name}</div><div class="meta">GPIO ${ch.pin}</div></div><div><input id="range_${ch.id}" type="range" min="0" max="100" value="${ch.value}" oninput="edit('${ch.id}',this.value)"><div class="bar"><div id="fill_${ch.id}" class="fill"></div></div></div><label class="pct"><input id="num_${ch.id}" type="number" min="0" max="100" value="${ch.value}" oninput="edit('${ch.id}',this.value)"></label><button id="en_${ch.id}" onclick="toggle('${ch.id}')"></button></article>`}
+function channelHtml(ch){return `<article class="channel ${ch.id}"><div><div class="label"><i class="dot"></i>${ch.name}</div><div class="meta">GPIO ${ch.pin}</div></div><div><input id="range_${ch.id}" type="range" min="0" max="100" value="${ch.value}" oninput="edit('${ch.id}',this.value)" onchange="commitEdit('${ch.id}',this.value)"><div class="bar"><div id="fill_${ch.id}" class="fill"></div></div></div><label class="pct"><input id="num_${ch.id}" type="number" min="0" max="100" value="${ch.value}" oninput="edit('${ch.id}',this.value)" onchange="commitEdit('${ch.id}',this.value)"></label><button id="en_${ch.id}" onclick="toggle('${ch.id}')"></button></article>`}
 async function api(path){const r=await fetch(path,{cache:'no-store'});state=await r.json();render();}
 function render(){if(!state)return;document.getElementById('meta').textContent=`${state.device} ${state.version}`;document.getElementById('ip').textContent=state.ip;document.getElementById('rssi').textContent=`${state.rssi} dBm`;document.getElementById('fade').textContent=`${state.fade_ms} ms`;document.getElementById('gamma').textContent=state.gamma;const m=document.getElementById('masterBtn');m.textContent=state.master?'Turn all off':'Turn all on';m.classList.toggle('active',state.master);const box=document.getElementById('channels');if(!box.childElementCount)box.innerHTML=state.channels.map(channelHtml).join('');for(const ch of state.channels){document.getElementById(`range_${ch.id}`).value=ch.value;document.getElementById(`num_${ch.id}`).value=ch.value;document.getElementById(`fill_${ch.id}`).style.width=`${ch.output}%`;const b=document.getElementById(`en_${ch.id}`);b.textContent=ch.enabled?'Turn off':'Turn on';b.classList.toggle('active',ch.enabled);}}
-function edit(id,value){value=Math.max(0,Math.min(100,parseInt(value||0,10)));document.getElementById(`range_${id}`).value=value;document.getElementById(`num_${id}`).value=value;clearTimeout(timers[id]);timers[id]=setTimeout(()=>api(`/api/set?ch=${id}&value=${value}`),120);}
+function clampValue(value){return Math.max(0,Math.min(100,parseInt(value||0,10)))}
+function commitEdit(id,value){value=clampValue(value);clearTimeout(timers[id]);return api(`/api/set?ch=${id}&value=${value}`)}
+function edit(id,value){value=clampValue(value);document.getElementById(`range_${id}`).value=value;document.getElementById(`num_${id}`).value=value;clearTimeout(timers[id]);timers[id]=setTimeout(()=>commitEdit(id,value),350);}
 function toggle(id){api(`/api/toggle?ch=${id}`)}function preset(n){api(`/api/preset?name=${n}`)}document.getElementById('masterBtn').onclick=()=>api('/api/master');
 function resetWifi(){if(confirm('Resetovat Wi-Fi nastavenia a restartovat ESP32?'))fetch('/api/reset-wifi',{method:'POST'}).then(()=>alert('ESP32 sa restartuje do setup rezimu.'))}
 api('/api/state');setInterval(()=>api('/api/state'),2000);
@@ -373,8 +397,14 @@ void handleWifiSave() {
     server.send(400, "text/plain", "SSID is required");
     return;
   }
+  Preferences prefs;
+  if (!prefs.begin("rgbpwm", false)) {
+    server.send(500, "text/plain", "Failed to open Wi-Fi storage");
+    return;
+  }
   prefs.putString("wifi_ssid", ssid);
   prefs.putString("wifi_pass", pass);
+  prefs.end();
   server.send(200, "text/plain", "Wi-Fi ulozena. ESP32 sa restartuje.");
   delay(300);
   ESP.restart();
@@ -409,8 +439,19 @@ void updateStatusLed() {
 
 void setupWifi() {
   WiFi.setTxPower(WIFI_POWER_19_5dBm);
+  Preferences prefs;
+  if (!prefs.begin("rgbpwm", true)) {
+    Serial.println("Failed to open WiFi storage, starting setup AP.");
+    fallbackPortalActive = true;
+    WiFi.mode(WIFI_AP);
+    WiFi.softAP(CONFIG_AP_NAME);
+    delay(100);
+    dnsServer.start(53, "*", WiFi.softAPIP());
+    return;
+  }
   const String ssid = prefs.getString("wifi_ssid", "");
   const String pass = prefs.getString("wifi_pass", "");
+  prefs.end();
 
   if (ssid.length() == 0) {
     Serial.println("No WiFi credentials saved, starting setup AP.");

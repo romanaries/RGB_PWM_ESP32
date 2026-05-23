@@ -7,7 +7,7 @@
 #include <WiFi.h>
 #include <math.h>
 
-static const char* FW_VERSION = "0.1.2";
+static const char* FW_VERSION = "0.1.3";
 static const char* DEVICE_NAME = "RGB-LAB";
 static const char* CONFIG_AP_NAME = "RGB-LAB-SETUP";
 static const char* MDNS_NAME = "rgb-lab";
@@ -47,13 +47,14 @@ struct Channel {
   float fadeStartPercent;
   float fadeTargetPercent;
   uint32_t fadeStartMs;
+  uint16_t lastDuty;
 };
 
 Channel channels[] = {
-  {"r", "Red", PWM_R_PIN, PWM_R_CH, 0, true, 0.0f, 0.0f, 0.0f, 0},
-  {"g", "Green", PWM_G_PIN, PWM_G_CH, 0, true, 0.0f, 0.0f, 0.0f, 0},
-  {"b", "Blue", PWM_B_PIN, PWM_B_CH, 0, true, 0.0f, 0.0f, 0.0f, 0},
-  {"w", "White", PWM_W_PIN, PWM_W_CH, 0, true, 0.0f, 0.0f, 0.0f, 0},
+  {"r", "Red", PWM_R_PIN, PWM_R_CH, 0, true, 0.0f, 0.0f, 0.0f, 0, UINT16_MAX},
+  {"g", "Green", PWM_G_PIN, PWM_G_CH, 0, true, 0.0f, 0.0f, 0.0f, 0, UINT16_MAX},
+  {"b", "Blue", PWM_B_PIN, PWM_B_CH, 0, true, 0.0f, 0.0f, 0.0f, 0, UINT16_MAX},
+  {"w", "White", PWM_W_PIN, PWM_W_CH, 0, true, 0.0f, 0.0f, 0.0f, 0, UINT16_MAX},
 };
 
 constexpr size_t CHANNEL_COUNT = sizeof(channels) / sizeof(channels[0]);
@@ -123,7 +124,10 @@ void refreshTargets(bool store) {
 }
 
 void applyPwm(Channel& ch) {
-  ledcWrite(ch.pwmChannel, gammaDuty(ch.currentPercent));
+  const uint16_t duty = gammaDuty(ch.currentPercent);
+  if (duty == ch.lastDuty) return;
+  ledcWrite(ch.pwmChannel, duty);
+  ch.lastDuty = duty;
 }
 
 void tickFades() {
@@ -237,7 +241,9 @@ void writeStateJson() {
     item["value"] = ch.percent;
     item["enabled"] = ch.enabled;
     item["output"] = static_cast<int>(roundf(ch.currentPercent));
+    item["duty"] = ch.lastDuty == UINT16_MAX ? gammaDuty(ch.currentPercent) : ch.lastDuty;
     item["pin"] = ch.pin;
+    item["pwm_channel"] = ch.pwmChannel;
   }
 
   String json;

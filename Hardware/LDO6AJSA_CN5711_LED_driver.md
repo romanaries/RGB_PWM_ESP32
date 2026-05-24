@@ -1,55 +1,55 @@
 # LDO6AJSA / LD06AJSA LED Current Driver
 
-Ovladany prudovy zdroj pre LED v tomto projekte je modul LDO6AJSA/LD06AJSA s obvodom CN5711.
+The LED current driver used in this project is an LDO6AJSA/LD06AJSA module based on the CN5711 chip.
 
-## Uloha v projekte
+## Role in the Project
 
-- kazdy LED kanal ma vlastny driver
-- ESP32 ovlada jas cez PWM signal na vstupe `CE`
-- trimrom na module sa nastavuje maximalny prud LED kanala
-- spolocna zem ESP32 a driverov je nutna
+- each LED channel has its own driver module
+- the ESP32-C3 controls brightness with a PWM signal on the driver's `CE` input
+- the trimmer on the module sets the maximum LED current
+- a common ground between the ESP32-C3 and all driver modules is required
 
-## Typicke parametre modulu
+## Typical Module Parameters
 
-| Parameter | Hodnota |
+| Parameter | Value |
 | --- | --- |
-| Riadiaci obvod | CN5711 |
-| Typ | konstantnoproudovy LED driver |
-| Napajanie | 2.8 az 6 V DC |
-| Vystupny prud | nastavitelny, typicky 30 az 1500 mA |
-| PWM riadenie | cez `CE`, odporucane do 2 kHz |
-| Dropout | typicky okolo 0.37 V pri 1.5 A |
-| Ochrana | teplotna regulacia a obmedzenie nadprudu |
-| Rozmery modulu | priblizne 18 x 10 mm |
+| Controller IC | CN5711 |
+| Type | constant-current LED driver |
+| Supply voltage | 2.8 to 6 V DC |
+| Output current | adjustable, typically 30 to 1500 mA |
+| PWM control | via `CE`, recommended up to 2 kHz |
+| Dropout | typically around 0.37 V at 1.5 A |
+| Protection | thermal regulation and overcurrent limiting |
+| Module size | approximately 18 x 10 mm |
 
-## Piny modulu
+## Module Pins
 
-| Pin | Popis |
+| Pin | Description |
 | --- | --- |
-| `V1` / `VCC` | kladne napajanie drivera |
-| `G` / `GND` | zem, spojit s GND ESP32 |
-| `CE` | enable/PWM vstup, logicka 1 zapina vystup |
-| `LED` | vystup pre LED |
+| `V1` / `VCC` | positive driver supply |
+| `G` / `GND` | ground, connect to ESP32-C3 ground |
+| `CE` | enable/PWM input; logic high enables the output |
+| `LED` | LED output |
 
-## Zapojenie s ESP32
+## Wiring to the ESP32-C3
 
 ```text
-ESP32 GPIOx -> CE drivera
-ESP32 GND   -> GND drivera
-5V zdroj    -> V1/VCC drivera
-LED driver  -> vykonova LED
+ESP32 GPIOx -> CE input of the driver
+ESP32 GND   -> GND of the driver
+5V supply   -> V1/VCC of the driver
+LED driver  -> high-power LED
 ```
 
-Pre RGBW su potrebne 4 kusy modulu: Red, Green, Blue, White.
+Four modules are needed for RGBW: red, green, blue and white.
 
-## Poznamky
+## Notes
 
-- Modul je vhodny pre jednu vykonovu LED alebo paralelne LED vetvy, nie pre viac LED v serii s vyssim napatim ako napajanie modulu.
-- Pri vyssich prudach treba riesit odvod tepla z LED aj z drivera.
-- Na AliExpresse sa modul predava pod oznacenim `LDO6AJSA`, `LD06AJSA`, pripadne ako `CN5711 LED driver`.
+- The module is suitable for one high-power LED or parallel LED branches, not for multiple LEDs in series above the module supply voltage.
+- At higher currents, both the LED and the driver module need proper heat dissipation.
+- The module is commonly sold as `LDO6AJSA`, `LD06AJSA` or `CN5711 LED driver`.
 
-## Zdroje
+## Sources
 
-- DONE.LAND CN5711 / LDO6AJSA popis: https://done.land/components/light/ledcontroller/cn5711/
-- HESTORE LD06AJSA produkt a datasheet odkaz: https://www.hestore.eu/en/prod_10048979.html
-- AliExpress hladanie: https://www.aliexpress.com/w/wholesale-LD06AJSA.html
+- DONE.LAND CN5711 / LDO6AJSA description: https://done.land/components/light/ledcontroller/cn5711/
+- HESTORE LD06AJSA product page and datasheet link: https://www.hestore.eu/en/prod_10048979.html
+- AliExpress search: https://www.aliexpress.com/w/wholesale-LD06AJSA.html

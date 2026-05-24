@@ -1,29 +1,29 @@
 # LuatOS ESP32-C3 Board
 
-Projekt pouziva dosku LuatOS ESP32-C3, v PlatformIO nastavenu ako `airm2m_core_esp32c3`.
+This project uses a LuatOS ESP32-C3 board configured in PlatformIO as `airm2m_core_esp32c3`.
 
-## Zhrnutie pre tento projekt
+## Project Pin Summary
 
-| Signal | GPIO | Poznamka |
+| Signal | GPIO | Note |
 | --- | ---: | --- |
-| Red PWM | GPIO3 | PWM vystup na CE drivera |
-| Green PWM | GPIO4 | PWM vystup na CE drivera |
-| Blue PWM | GPIO5 | PWM vystup na CE drivera |
-| White PWM | GPIO7 | PWM vystup na CE drivera |
-| Wi-Fi LED | GPIO13 | doskova LED D5, svieti pri Wi-Fi, blika v AP rezime |
-| GND | GND | spolocna zem ESP32 a LED driverov |
-| 5V | 5V | napajanie driverov, podla pouziteho zdroja |
+| Red PWM | GPIO3 | PWM output to the driver's `CE` input |
+| Green PWM | GPIO4 | PWM output to the driver's `CE` input |
+| Blue PWM | GPIO5 | PWM output to the driver's `CE` input |
+| White PWM | GPIO7 | PWM output to the driver's `CE` input |
+| Wi-Fi LED | GPIO13 | on-board D5 LED, solid when connected and blinking in setup AP mode |
+| GND | GND | common ground for the ESP32-C3 and LED drivers |
+| 5V | 5V | LED driver supply, depending on the selected power source |
 
-## Dolezite body z dokumentacie dosky
+## Important Board Notes
 
-- jadro dosky je ESP32-C3
-- rozmery dosky su priblizne 21 x 51 mm
-- doska ma 4 PWM vystupy, pouzitelne cez GPIO
-- doska ma 2 cervene indikujuce LED
-- PWM vystupy projektu su presunute na GPIO3/GPIO4/GPIO5/GPIO7, aby sa nepouzivali strapping, USB, UART0 ani doskove LED piny
-- `GPIO18` a `GPIO19` mozu byt pouzite pre USB, preto ich projekt nepouziva
-- pre Arduino je odporucany vyber dosky `AirM2M CORE ESP32C3`
+- the board uses an ESP32-C3 module
+- board dimensions are approximately 21 x 51 mm
+- GPIO pins can be used as PWM outputs
+- the board has two red indicator LEDs
+- the project PWM outputs use `GPIO3`, `GPIO4`, `GPIO5` and `GPIO7` to avoid strapping pins, USB pins, UART0 pins and on-board LED pins
+- `GPIO18` and `GPIO19` may be used for USB, so this project keeps them free
+- the recommended Arduino board selection is `AirM2M CORE ESP32C3`
 
-## Zdroje
+## Sources
 
-- LuatOS dokumentacia dosky: https://wiki.luatos.com/chips/esp32c3/board.html
+- LuatOS board documentation: https://wiki.luatos.com/chips/esp32c3/board.html

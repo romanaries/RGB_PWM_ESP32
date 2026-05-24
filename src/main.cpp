@@ -378,7 +378,7 @@ function clampValue(value){return Math.max(0,Math.min(100,parseInt(value||0,10))
 function commitEdit(id,value){value=clampValue(value);clearTimeout(timers[id]);return api(`/api/set?ch=${id}&value=${value}`)}
 function edit(id,value){value=clampValue(value);document.getElementById(`range_${id}`).value=value;document.getElementById(`num_${id}`).value=value;clearTimeout(timers[id]);timers[id]=setTimeout(()=>commitEdit(id,value),350);}
 function toggle(id){api(`/api/toggle?ch=${id}`)}function preset(n){api(`/api/preset?name=${n}`)}document.getElementById('masterBtn').onclick=()=>api('/api/master');
-function resetWifi(){if(confirm('Resetovat Wi-Fi nastavenia a restartovat ESP32?'))fetch('/api/reset-wifi',{method:'POST'}).then(()=>alert('ESP32 sa restartuje do setup rezimu.'))}
+function resetWifi(){if(confirm('Clear Wi-Fi settings and restart the ESP32?'))fetch('/api/reset-wifi',{method:'POST'}).then(()=>alert('The ESP32 will restart in setup mode.'))}
 api('/api/state');setInterval(()=>api('/api/state'),2000);
 </script>
 </body>
@@ -396,7 +396,7 @@ const char FALLBACK_PORTAL_HTML[] PROGMEM = R"HTML(
 *{box-sizing:border-box}body{margin:0;background:#0b0d10;color:#e8edf2;font-family:Segoe UI,Arial,sans-serif}.wrap{width:min(520px,100%);margin:0 auto;padding:22px}h1{font-size:24px;margin:0 0 8px}.muted{color:#8f9aaa;margin-bottom:18px}.box{border:1px solid #29313d;background:#141820;border-radius:8px;padding:16px}label{display:block;margin:12px 0 6px;color:#aab4c2}input{width:100%;padding:12px;border-radius:8px;border:1px solid #29313d;background:#0f1218;color:#e8edf2;font-size:16px}button{width:100%;margin-top:16px;padding:12px;border-radius:8px;border:1px solid #40516a;background:#243145;color:#e8edf2;font-weight:700}
 </style>
 </head>
-<body><main class="wrap"><h1>RGB Lab Wi-Fi Setup</h1><p class="muted">Zadaj lokalnu Wi-Fi siet. ESP32 sa po ulozeni restartuje.</p><form class="box" method="post" action="/wifi-save"><label>SSID</label><input name="ssid" autocomplete="off" required><label>Heslo</label><input name="pass" type="password"><button>Ulozit a restartovat</button></form></main></body>
+<body><main class="wrap"><h1>RGB Lab Wi-Fi Setup</h1><p class="muted">Enter the local Wi-Fi network. The ESP32 will restart after saving.</p><form class="box" method="post" action="/wifi-save"><label>SSID</label><input name="ssid" autocomplete="off" required><label>Password</label><input name="pass" type="password"><button>Save and restart</button></form></main></body>
 </html>
 )HTML";
 
@@ -442,7 +442,7 @@ void handleWifiSave() {
   prefs.putString("wifi_ssid", ssid);
   prefs.putString("wifi_pass", pass);
   prefs.end();
-  server.send(200, "text/plain", "Wi-Fi ulozena. ESP32 sa restartuje.");
+  server.send(200, "text/plain", "Wi-Fi saved. The ESP32 will restart.");
   delay(300);
   ESP.restart();
 }

@@ -21,23 +21,25 @@ Bezdratovy RGBW PWM kontroler pre 4x prudovy LED driver LDO6AJSA/LD06AJSA s obvo
 
 | Signal | GPIO | Pin na doske |
 | --- | ---: | ---: |
-| PWM_R | GPIO0 | pin 2 |
-| PWM_G | GPIO1 | pin 3 |
-| PWM_B | GPIO12 | pin 4 |
-| PWM_W | GPIO10 | pin 21 |
+| PWM_R | GPIO3 | pin 20 |
+| PWM_G | GPIO4 | pin 28 |
+| PWM_B | GPIO5 | pin 27 |
+| PWM_W | GPIO6 | pin 22 |
 | WIFI_LED | GPIO13 | pin 10 / D5 |
 | GND | GND | pin 14 |
 | 5V | 5V | pin 16 |
 
-GPIO12 je zaroven pripojene na doskovu LED D4, preto svieti/blika spolu s modrym kanalom. GPIO13/D5 pouzivame ako stavovu Wi-Fi LED. Vyhybame sa GPIO18/GPIO19, lebo mozu byt pouzite pre USB, a GPIO20/GPIO21 nechavame volne pre UART.
+PWM vystupy su zvolene mimo strapping pinov GPIO2/GPIO8/GPIO9, mimo USB pinov GPIO18/GPIO19, mimo UART0 GPIO20/GPIO21 a mimo doskovych LED GPIO12/GPIO13. GPIO13/D5 pouzivame iba ako stavovu Wi-Fi LED.
+
+Ak by LED driver aj po zmene pinov pri zapnuti kratko zableskol, dopln na kazdy vstup CE odpor 47k az 100k medzi CE a GND. Ten drzi driver vypnuty pocas kratkej chvile, kym ESP32 este nema piny inicializovane.
 
 ## Zapojenie
 
 ```text
-ESP32 GPIO0  -> CE/PWM drivera cervenej LED
-ESP32 GPIO1  -> CE/PWM drivera zelenej LED
-ESP32 GPIO12 -> CE/PWM drivera modrej LED
-ESP32 GPIO10 -> CE/PWM drivera bielej LED
+ESP32 GPIO3  -> CE/PWM drivera cervenej LED
+ESP32 GPIO4  -> CE/PWM drivera zelenej LED
+ESP32 GPIO5  -> CE/PWM drivera modrej LED
+ESP32 GPIO6  -> CE/PWM drivera bielej LED
 ESP32 GPIO13 -> stavova LED na doske
 ESP32 GND    -> GND zdroja a vsetkych driverov
 5V zdroj     -> VCC driverov

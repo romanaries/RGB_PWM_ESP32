@@ -7,18 +7,18 @@
 #include <WiFi.h>
 #include <math.h>
 
-static const char* FW_VERSION = "0.1.3";
+static const char* FW_VERSION = "0.1.4";
 static const char* DEVICE_NAME = "RGB-LAB";
 static const char* CONFIG_AP_NAME = "RGB-LAB-SETUP";
 static const char* MDNS_NAME = "rgb-lab";
 static const char* WIFI_PREF_NAMESPACE = "rgbpwm";
 static const char* STATE_PREF_NAMESPACE = "rgbstate";
 
-// LuatOS ESP32-C3 board, pins 1-16 side.
-constexpr uint8_t PWM_R_PIN = 0;
-constexpr uint8_t PWM_G_PIN = 1;
-constexpr uint8_t PWM_B_PIN = 12;
-constexpr uint8_t PWM_W_PIN = 10;
+// LuatOS ESP32-C3 board: avoid strapping, USB, UART0 and on-board LED pins.
+constexpr uint8_t PWM_R_PIN = 3;
+constexpr uint8_t PWM_G_PIN = 4;
+constexpr uint8_t PWM_B_PIN = 5;
+constexpr uint8_t PWM_W_PIN = 6;
 constexpr uint8_t WIFI_LED_PIN = 13;
 
 constexpr uint8_t PWM_R_CH = 0;

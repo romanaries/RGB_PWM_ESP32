@@ -24,7 +24,7 @@ Bezdratovy RGBW PWM kontroler pre 4x prudovy LED driver LDO6AJSA/LD06AJSA s obvo
 | PWM_R | GPIO3 | pin 20 |
 | PWM_G | GPIO4 | pin 28 |
 | PWM_B | GPIO5 | pin 27 |
-| PWM_W | GPIO6 | pin 22 |
+| PWM_W | GPIO7 | pin 23 |
 | WIFI_LED | GPIO13 | pin 10 / D5 |
 | GND | GND | pin 14 |
 | 5V | 5V | pin 16 |
@@ -39,7 +39,7 @@ Ak by LED driver aj po zmene pinov pri zapnuti kratko zableskol, dopln na kazdy 
 ESP32 GPIO3  -> CE/PWM drivera cervenej LED
 ESP32 GPIO4  -> CE/PWM drivera zelenej LED
 ESP32 GPIO5  -> CE/PWM drivera modrej LED
-ESP32 GPIO6  -> CE/PWM drivera bielej LED
+ESP32 GPIO7  -> CE/PWM drivera bielej LED
 ESP32 GPIO13 -> stavova LED na doske
 ESP32 GND    -> GND zdroja a vsetkych driverov
 5V zdroj     -> VCC driverov

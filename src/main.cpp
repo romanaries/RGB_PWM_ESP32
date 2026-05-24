@@ -18,7 +18,7 @@ static const char* STATE_PREF_NAMESPACE = "rgbstate";
 constexpr uint8_t PWM_R_PIN = 3;
 constexpr uint8_t PWM_G_PIN = 4;
 constexpr uint8_t PWM_B_PIN = 5;
-constexpr uint8_t PWM_W_PIN = 6;
+constexpr uint8_t PWM_W_PIN = 7;
 constexpr uint8_t WIFI_LED_PIN = 13;
 
 constexpr uint8_t PWM_R_CH = 0;
